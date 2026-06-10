@@ -55,15 +55,30 @@ void OurLoopDeletionPass::deleteLoop(Loop *L) {
 
   Preheader->getTerminator()->replaceUsesOfWith(Header, ExitBlock);
 
-  std::vector<BasicBlock *> Blocks;
-  for (BasicBlock *BB : L->blocks())
-    Blocks.push_back(BB);
+  std::vector<BasicBlock *> Blocks(L->blocks().begin(), L->blocks().end());
 
-  for (BasicBlock *BB : Blocks)
+  // for multiple levels of nesting, we need to 'bubble up' the changes to all
+  // parent loops
+  Loop *ParentLoop = L->getParentLoop();
+  while (ParentLoop) {
+    for (BasicBlock *BB : Blocks) {
+      if (ParentLoop->contains(BB)) {
+        ParentLoop->removeBlockFromLoop(BB);
+      }
+    }
+    if (ParentLoop->contains(L)) {
+      ParentLoop->removeChildLoop(L);
+    }
+    ParentLoop = ParentLoop->getParentLoop();
+  }
+
+  for (BasicBlock *BB : Blocks) {
     BB->dropAllReferences();
+  }
 
-  for (BasicBlock *BB : Blocks)
+  for (BasicBlock *BB : Blocks) {
     BB->eraseFromParent();
+  }
 }
 
 bool OurLoopDeletionPass::runOnLoop(Loop *L, LPPassManager &LPM) {
@@ -74,6 +89,11 @@ bool OurLoopDeletionPass::runOnLoop(Loop *L, LPPassManager &LPM) {
 
   if (!L->isLoopSimplifyForm()) {
     errs() << "Loop is not in simplified form. Skipping.\n";
+    return false;
+  }
+
+  if (!L->getSubLoops().empty()) {
+    errs() << "Loop has nested loops. Skipping.\n";
     return false;
   }
 
