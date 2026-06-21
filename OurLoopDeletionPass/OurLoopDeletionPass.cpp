@@ -14,9 +14,12 @@ bool OurLoopDeletionPass::isUsedAfterLoop(Loop *L, const Value *Var) {
 }
 
 bool OurLoopDeletionPass::isLoopDead(Loop *L) {
-  BasicBlock *ExitBlock = L->getExitBlock();
+  if (!L->isLoopSimplifyForm()) {
+    errs() << "Loop is not in simplified form.\n";
+    return false;
+  }
 
-  if (!ExitBlock) {
+  if (!L->getExitBlock()) {
     errs() << "Loop does not have a single exit block.\n";
     return false;
   }
@@ -85,11 +88,6 @@ bool OurLoopDeletionPass::runOnLoop(Loop *L, LPPassManager &LPM) {
   errs() << "Running on loop: " << *L << "\n";
 
   CurrentFunction = L->getHeader()->getParent();
-
-  if (!L->isLoopSimplifyForm()) {
-    errs() << "Loop is not in simplified form. Skipping.\n";
-    return false;
-  }
 
   if (!L->getSubLoops().empty()) {
     errs() << "Loop has nested loops. Skipping.\n";
