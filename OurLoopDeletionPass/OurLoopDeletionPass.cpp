@@ -14,11 +14,10 @@ bool OurLoopDeletionPass::isUsedAfterLoop(Loop *L, const Value *Var) {
 }
 
 bool OurLoopDeletionPass::isLoopDead(Loop *L) {
-  BasicBlock *Preheader = L->getLoopPreheader();
   BasicBlock *ExitBlock = L->getExitBlock();
 
-  if (!Preheader || !ExitBlock) {
-    errs() << "Loop does not have a preheader or a single exit block.\n";
+  if (!ExitBlock) {
+    errs() << "Loop does not have a single exit block.\n";
     return false;
   }
 
@@ -29,7 +28,7 @@ bool OurLoopDeletionPass::isLoopDead(Loop *L) {
         Value *Ptr = I.getOperand(1);
         VarsAlteredInLoop.insert(Ptr);
       } else if (I.mayHaveSideEffects()) {
-        errs() << "INSTRUCTION WITH SIDE EFFECTS FOUND: " << I << "\n";
+        errs() << "Instruction with side effects found: " << I << "\n";
         return false;
       }
     }
@@ -104,6 +103,7 @@ bool OurLoopDeletionPass::runOnLoop(Loop *L, LPPassManager &LPM) {
 
   errs() << "Loop is dead. Deleting loop.\n";
   deleteLoop(L);
+  LPM.markLoopAsDeleted(*L);
 
   return true;
 }
