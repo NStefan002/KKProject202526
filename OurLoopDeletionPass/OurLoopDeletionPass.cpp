@@ -54,10 +54,9 @@ void OurLoopDeletionPass::deleteLoop(Loop *L) {
   BasicBlock *Preheader = L->getLoopPreheader();
   BasicBlock *Header = L->getHeader();
   BasicBlock *ExitBlock = L->getExitBlock();
+  std::vector<BasicBlock *> Blocks(L->blocks().begin(), L->blocks().end());
 
   Preheader->getTerminator()->replaceUsesOfWith(Header, ExitBlock);
-
-  std::vector<BasicBlock *> Blocks(L->blocks().begin(), L->blocks().end());
 
   // for multiple levels of nesting, we need to 'bubble up' the changes to all
   // parent loops
@@ -86,8 +85,6 @@ void OurLoopDeletionPass::deleteLoop(Loop *L) {
 bool OurLoopDeletionPass::runOnLoop(Loop *L, LPPassManager &LPM) {
   errs() << "\n==============================\n";
   errs() << "Running on loop: " << *L << "\n";
-
-  CurrentFunction = L->getHeader()->getParent();
 
   if (!L->getSubLoops().empty()) {
     errs() << "Loop has nested loops. Skipping.\n";

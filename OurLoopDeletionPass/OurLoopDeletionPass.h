@@ -9,8 +9,6 @@ using namespace llvm;
 namespace {
 class OurLoopDeletionPass : public LoopPass {
 private:
-  const Function *CurrentFunction;
-
   bool isUsedAfterLoop(Loop *L, const Value *Var);
   bool isLoopDead(Loop *L);
   void deleteLoop(Loop *L);
