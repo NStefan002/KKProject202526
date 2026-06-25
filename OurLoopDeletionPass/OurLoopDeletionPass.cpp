@@ -13,6 +13,96 @@ bool OurLoopDeletionPass::isUsedAfterLoop(Loop *L, const Value *Var) {
   return false;
 }
 
+const ConstantInt *
+OurLoopDeletionPass::resolveOperandToConstant(const Value *Op,
+                                              BasicBlock *Preheader) {
+  // if the operand is already a constant integer, return it
+  if (const ConstantInt *CInt = dyn_cast<ConstantInt>(Op)) {
+    return CInt;
+  }
+  // if the operand is a LoadInst, look for the last StoreInst to that pointer
+  // in the preheader
+  if (auto *LI = dyn_cast<LoadInst>(Op)) {
+    const Value *Ptr = LI->getPointerOperand();
+
+    for (auto RI = Preheader->rbegin(), RE = Preheader->rend(); RI != RE;
+         ++RI) {
+      if (auto *SI = dyn_cast<StoreInst>(&*RI)) {
+        if (SI->getPointerOperand() == Ptr) {
+          return dyn_cast<ConstantInt>(SI->getValueOperand());
+        }
+      }
+    }
+  }
+  return nullptr;
+}
+
+bool OurLoopDeletionPass::isLoopInfinite(
+    Loop *L, const std::unordered_set<const Value *> &VarsAlteredInLoop) {
+
+  bool loopCounterAlteredInLoop = false;
+  const BranchInst *BI = dyn_cast<BranchInst>(L->getHeader()->getTerminator());
+  if (!BI || !BI->isConditional()) {
+    return false;
+  }
+
+  errs() << "Loop condition: " << *BI->getCondition() << "\n";
+
+  Value *Cond = BI->getCondition();
+
+  if (const ConstantInt *CI = dyn_cast<ConstantInt>(Cond)) {
+    return !CI->isZero();
+  }
+
+  const ICmpInst *ICmp = dyn_cast<ICmpInst>(Cond);
+  if (!ICmp) {
+    return false;
+  }
+
+  for (const Value *Op : ICmp->operands()) {
+    if (const LoadInst *LI = dyn_cast<LoadInst>(Op)) {
+      const Value *Ptr = LI->getPointerOperand();
+      if (VarsAlteredInLoop.count(Ptr)) {
+        errs() << "Variable " << *Ptr
+               << " is altered in the loop and used in the loop "
+                  "condition.\n";
+        loopCounterAlteredInLoop = true;
+      }
+    }
+  }
+
+  // if the loop counter is altered in the loop, we cannot determine if the loop
+  // is infinite or not
+  if (loopCounterAlteredInLoop) {
+    return false;
+  }
+
+  // loop counter is not altered in the loop, checking if the loop condition
+  // is statically determinable
+
+  // no need to check if the preheader exists because we already checked that
+  // the loop is in simplified form
+  BasicBlock *Preheader = L->getLoopPreheader();
+
+  const ConstantInt *LHS =
+      resolveOperandToConstant(ICmp->getOperand(0), Preheader);
+  const ConstantInt *RHS =
+      resolveOperandToConstant(ICmp->getOperand(1), Preheader);
+
+  // undeterminable loop condition
+  if (!LHS || !RHS) {
+    return false;
+  }
+
+  // mathematically evaluate the comparison based on the predicate
+  // and the constant values of LHS and RHS
+  bool LoopWillExecute =
+      ICmpInst::compare(LHS->getValue(), RHS->getValue(), ICmp->getPredicate());
+
+  // loop is either infinite or will not execute at all
+  return LoopWillExecute;
+}
+
 bool OurLoopDeletionPass::isLoopDead(Loop *L) {
   if (!L->isLoopSimplifyForm()) {
     errs() << "Loop is not in simplified form.\n";
@@ -43,6 +133,11 @@ bool OurLoopDeletionPass::isLoopDead(Loop *L) {
              << " is altered in the loop and used after the loop.\n";
       return false;
     }
+  }
+
+  if (isLoopInfinite(L, VarsAlteredInLoop)) {
+    errs() << "Loop is infinite.\n";
+    return false;
   }
 
   return true;

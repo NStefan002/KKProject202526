@@ -1,6 +1,7 @@
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
 #include <unordered_set>
 #include <vector>
 
@@ -10,6 +11,11 @@ namespace {
 class OurLoopDeletionPass : public LoopPass {
 private:
   bool isUsedAfterLoop(Loop *L, const Value *Var);
+  const ConstantInt *resolveOperandToConstant(const Value *Op,
+                                              BasicBlock *Preheader);
+  bool
+  isLoopInfinite(Loop *L,
+                 const std::unordered_set<const Value *> &VarsAlteredInLoop);
   bool isLoopDead(Loop *L);
   void deleteLoop(Loop *L);
 
