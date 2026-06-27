@@ -40,13 +40,10 @@ OurLoopDeletionPass::resolveOperandToConstant(const Value *Op,
 bool OurLoopDeletionPass::isLoopInfinite(
     Loop *L, const std::unordered_set<const Value *> &VarsAlteredInLoop) {
 
-  bool loopCounterAlteredInLoop = false;
   const BranchInst *BI = dyn_cast<BranchInst>(L->getHeader()->getTerminator());
   if (!BI || !BI->isConditional()) {
     return false;
   }
-
-  errs() << "Loop condition: " << *BI->getCondition() << "\n";
 
   Value *Cond = BI->getCondition();
 
@@ -59,6 +56,7 @@ bool OurLoopDeletionPass::isLoopInfinite(
     return false;
   }
 
+  bool loopCounterAlteredInLoop = false;
   for (const Value *Op : ICmp->operands()) {
     if (const LoadInst *LI = dyn_cast<LoadInst>(Op)) {
       const Value *Ptr = LI->getPointerOperand();
@@ -104,6 +102,11 @@ bool OurLoopDeletionPass::isLoopInfinite(
 }
 
 bool OurLoopDeletionPass::isLoopDead(Loop *L) {
+  if (!L->getSubLoops().empty()) {
+    errs() << "Loop has nested loops. Skipping.\n";
+    return false;
+  }
+
   if (!L->isLoopSimplifyForm()) {
     errs() << "Loop is not in simplified form.\n";
     return false;
@@ -180,11 +183,6 @@ void OurLoopDeletionPass::deleteLoop(Loop *L) {
 bool OurLoopDeletionPass::runOnLoop(Loop *L, LPPassManager &LPM) {
   errs() << "\n==============================\n";
   errs() << "Running on loop: " << *L << "\n";
-
-  if (!L->getSubLoops().empty()) {
-    errs() << "Loop has nested loops. Skipping.\n";
-    return false;
-  }
 
   if (!isLoopDead(L)) {
     errs() << "Loop is not dead. Skipping.\n";
