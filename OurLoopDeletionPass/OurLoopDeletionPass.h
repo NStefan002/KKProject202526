@@ -2,6 +2,7 @@
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
+#include <stack>
 #include <unordered_set>
 #include <vector>
 

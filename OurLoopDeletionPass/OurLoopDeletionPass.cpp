@@ -1,11 +1,28 @@
 #include "OurLoopDeletionPass.h"
 
 bool OurLoopDeletionPass::isUsedAfterLoop(Loop *L, const Value *Var) {
-  BasicBlock *Preheader = L->getLoopPreheader();
+  BasicBlock *ExitBlock = L->getExitBlock();
+  std::unordered_set<const BasicBlock *> BlocksAfterLoop;
+  std::stack<const BasicBlock *> BlocksToVisit;
+  BlocksAfterLoop.insert(ExitBlock);
+  BlocksToVisit.push(ExitBlock);
+
+  while (!BlocksToVisit.empty()) {
+    const BasicBlock *CurrentBlock = BlocksToVisit.top();
+    BlocksToVisit.pop();
+
+    for (const BasicBlock *Succ : successors(CurrentBlock)) {
+      if (!BlocksAfterLoop.count(Succ)) {
+        BlocksAfterLoop.insert(Succ);
+        BlocksToVisit.push(Succ);
+      }
+    }
+  }
+
   for (const User *U : Var->users()) {
     if (const Instruction *UserInstr = dyn_cast<Instruction>(U)) {
       const BasicBlock *UserBB = UserInstr->getParent();
-      if (!L->contains(UserBB) && UserBB != Preheader) {
+      if (BlocksAfterLoop.count(UserBB)) {
         return true;
       }
     }
