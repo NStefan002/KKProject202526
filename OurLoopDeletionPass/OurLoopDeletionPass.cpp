@@ -59,7 +59,7 @@ bool OurLoopDeletionPass::isLoopInfinite(
 
   const BranchInst *BI = dyn_cast<BranchInst>(L->getHeader()->getTerminator());
   if (!BI || !BI->isConditional()) {
-    return false;
+    return true;
   }
 
   Value *Cond = BI->getCondition();
@@ -70,7 +70,7 @@ bool OurLoopDeletionPass::isLoopInfinite(
 
   const ICmpInst *ICmp = dyn_cast<ICmpInst>(Cond);
   if (!ICmp) {
-    return false;
+    return true;
   }
 
   bool loopCounterAlteredInLoop = false;
@@ -106,7 +106,7 @@ bool OurLoopDeletionPass::isLoopInfinite(
 
   // undeterminable loop condition
   if (!LHS || !RHS) {
-    return false;
+    return true;
   }
 
   // mathematically evaluate the comparison based on the predicate
