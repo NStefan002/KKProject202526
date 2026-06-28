@@ -1,10 +1,13 @@
 int main()
 {
-    int sum = 0;
-    // should be deleted, sum is never used outside the loop, and i is local to the loop
-    for (int i = 0; i < 10; i++)
+    // nested loops, both should be deleted
+    // inner loop should be deleted first, then the outer loop
+    for (int i = 0; i < 4; i++)
     {
-        sum += i;
+        for (int j = 0; j < 10; j++)
+        {
+            int x = i + j;
+        }
     }
     return 0;
 }

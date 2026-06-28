@@ -1,9 +1,10 @@
 int main()
 {
-    // should be deleted, since x is never used outside the loop
+    // should be deleted, since sum is never used outside the loop
+    int sum = 0;
     for (int i = 0; i < 5; i++)
     {
-        int x = i * 2;
+        sum += i;
     }
     return 0;
 }

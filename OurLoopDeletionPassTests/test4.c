@@ -2,12 +2,12 @@
 
 int main()
 {
-    int sum = 0;
-    // should NOT be deleted, variable altered in the loop is used after the loop
+    // should NOT be deleted, call instruction may have side effects
     for (int i = 0; i < 5; i++)
     {
-        sum += i;
+        int x;
+        scanf("%d", &x);
+        printf("%d\n", x);
     }
-    printf("%d\n", sum); // sum escapes
     return 0;
 }

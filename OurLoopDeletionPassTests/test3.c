@@ -1,13 +1,13 @@
+#include <stdio.h>
+
 int main()
 {
-    // nested loops, both should be deleted
-    // inner loop should be deleted first, then the outer loop
-    for (int i = 0; i < 4; i++)
+    int sum = 0;
+    // should NOT be deleted, variable altered in the loop is used after the loop
+    for (int i = 0; i < 5; i++)
     {
-        for (int j = 0; j < 10; j++)
-        {
-            int x = i + j;
-        }
+        sum += i;
     }
+    printf("%d\n", sum); // sum escapes
     return 0;
 }

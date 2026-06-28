@@ -1,11 +1,11 @@
-#include <stdio.h>
-
 int main()
 {
-    // should NOT be deleted, call instruction may have side effects
-    for (int i = 0; i < 5; i++)
+    // infinite loop, should NOT be deleted
+    int n = 10;
+    for (int i = 0; i < n; i++)
     {
-        printf("%d\n", i); // call instruction
+        while (1)
+        {
+        }
     }
-    return 0;
 }
