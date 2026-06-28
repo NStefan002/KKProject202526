@@ -1,4 +1,5 @@
 ---
+# theme: ./light.json
 author: Stefan Novaković (43/2021), Vojkan Panić (138/2019)
 date: MMMM dd, YYYY
 paging: "%d / %d"
@@ -520,14 +521,14 @@ void OurLoopDeletionPass::deleteLoop(Loop *L) {
 
 ## Test primeri
 
-### Primer 1: Petlja sa promenljivom koja se ne koristi nakon petlje
+### Primer 1: Petlja menja promenljivu koja se ne koristi nakon petlje
 
 ```c
 int main()
 {
-    for (int i = 0; i < 5; i++)
-    {
-        int x = i * 2;
+    int sum = 0;
+    for (int i = 0; i < 5; i++) {
+        sum += i;
     }
     return 0;
 }
@@ -542,10 +543,8 @@ int main()
 ```c
 int main()
 {
-    for (int i = 0; i < 4; i++)
-    {
-        for (int j = 0; j < 10; j++)
-        {
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 10; j++) {
             int x = i + j;
         }
     }
@@ -567,11 +566,10 @@ int main()
 int main()
 {
     int sum = 0;
-    for (int i = 0; i < 5; i++)
-    {
+    for (int i = 0; i < 5; i++) {
         sum += i;
     }
-    printf("%d\n", sum); // sum escapes
+    printf("%d\n", sum); // !!!
     return 0;
 }
 ```
@@ -587,10 +585,10 @@ int main()
 
 int main()
 {
-    for (int i = 0; i < 5; i++)
-    {
+    for (int i = 0; i < 5; i++) {
         int x;
         scanf("%d", &x); // !!!
+        printf("%d\n", x); /// !!!
     }
     return 0;
 }
@@ -600,29 +598,30 @@ int main()
 
 ## Test primeri
 
-### Primer 5: Globalne promenljive
+### Primer 5: Vise petlji
 
 ```c
-int g = 0;
-int h = 0;
-
-void f() { g++; }
+#include <stdio.h>
 
 int main()
 {
-    for (int i = 0; i < 5; i++)
-        g += i;
+    int sum = 0;
+    for (int i = 0; i < 5; i++) {
+        sum += i;
+    }
 
-    for (int i = 0; i < 5; i++)
-        h++;
+    if (sum > 10) {
+        printf("Sum: %d\n", sum);
+    } else {
+        printf("Sum <= 10\n");
+    }
 
+    for (int j = 0; j < 5; j++) {
+        sum += j * 2;
+    }
     return 0;
 }
 ```
-
-Prva petlja nije mrtva jer menja globalnu promenljivu `g`, koja se koristi van
-petlje. Druga petlja je mrtva jer menja globalnu promenljivu `h`, koja se ne
-koristi nigde drugde u programu.
 
 ---
 
@@ -633,8 +632,9 @@ koristi nigde drugde u programu.
 ```c
 int main()
 {
-    for (;;)
-    {
+    int n = 10;
+    for (int i = 0; i < n; i++) {
+        while (1) { }
     }
 }
 ```
