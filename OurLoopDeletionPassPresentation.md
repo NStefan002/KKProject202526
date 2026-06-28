@@ -31,11 +31,10 @@ paging: "%d / %d"
 ### Pre
 
 ```c
-int main()
-{
-    for (int i = 0; i < 5; i++)
-    {
-        int x = i * 2; // x se ne koristi nakon petlje
+int main() {
+    int x = 0;
+    for (int i = 0; i < 5; i++) {
+        x += i; // x se ne koristi nakon petlje
     }
     return 0;
 }
@@ -44,8 +43,7 @@ int main()
 ### Posle
 
 ```c
-int main()
-{
+int main() {
     return 0;
 }
 ```
@@ -71,7 +69,7 @@ int main()
 int main() {
     int x = 0;
     for (int i = 0; i < 10; i++) {
-        x = i; // promenljiva x se ne koristi nakon petlje
+        x += i; // promenljiva x se ne koristi nakon petlje
     }
 }
 ```
@@ -92,6 +90,10 @@ namespace {
 class OurLoopDeletionPass : public LoopPass {
 private:
   bool isUsedAfterLoop(Loop *L, const Value *Var);
+  const ConstantInt *resolveOperandToConstant(const Value *Op,
+                                              BasicBlock *Preheader);
+  bool isLoopInfinite(Loop *L,
+                 const std::unordered_set<const Value *> &VarsAlteredInLoop);
   bool isLoopDead(Loop *L);
   void deleteLoop(Loop *L);
 
@@ -104,7 +106,6 @@ public:
 } // namespace
 
 char OurLoopDeletionPass::ID = 0;
-
 static RegisterPass<OurLoopDeletionPass>
     X("our-loop-deletion", "Our Loop Deletion Pass", false, false);
 ```
@@ -117,11 +118,6 @@ static RegisterPass<OurLoopDeletionPass>
 
 ```cpp
 bool OurLoopDeletionPass::runOnLoop(Loop *L, LPPassManager &LPM) {
-  if (!L->getSubLoops().empty()) {
-    errs() << "Loop has nested loops. Skipping.\n";
-    return false;
-  }
-
   if (!isLoopDead(L)) {
     errs() << "Loop is not dead. Skipping.\n";
     return false;
@@ -141,17 +137,12 @@ bool OurLoopDeletionPass::runOnLoop(Loop *L, LPPassManager &LPM) {
 
 ### Provera da li je petlja mrtva
 
-#### Pojednostavljena provera da li je petlja beskonačna
+#### Provera da li petlja sadrži unutrašnje petlje koje nisu mrtve
 
 ```cpp
 bool OurLoopDeletionPass::isLoopDead(Loop *L) {
-  if (!L->isLoopSimplifyForm()) {
-    errs() << "Loop is not in simplified form.\n";
-    return false;
-  }
-
-  if (!L->getExitBlock()) {
-    errs() << "Loop does not have a single exit block.\n";
+  if (!L->getSubLoops().empty()) {
+    errs() << "Loop has nested loops. Skipping.\n";
     return false;
   }
   // ...
@@ -191,6 +182,161 @@ bool OurLoopDeletionPass::isLoopDead(Loop *L) {
 
 ### Provera da li je petlja mrtva
 
+#### Provera da li je petlja beskonačna
+
+```cpp
+bool OurLoopDeletionPass::isLoopDead(Loop *L) {
+  // ...
+  if (!L->isLoopSimplifyForm()) {
+    errs() << "Loop is not in simplified form.\n";
+    return false;
+  }
+  if (!L->getExitBlock()) {
+    errs() << "Loop does not have a single exit block.\n";
+    return false;
+  }
+  // ...
+  std::unordered_set<const Value *> VarsAlteredInLoop;
+  // ...
+  if (isLoopInfinite(L, VarsAlteredInLoop)) {
+    errs() << "Loop is infinite.\n";
+    return false;
+  }
+}
+```
+
+---
+
+## Detalji implementacije
+
+### Provera da li je petlja mrtva
+
+#### Pomoćna funkcija `isLoopInfinite`
+
+```cpp
+bool OurLoopDeletionPass::isLoopInfinite(
+    Loop *L, const std::unordered_set<const Value *> &VarsAlteredInLoop) {
+
+  const BranchInst *BI = dyn_cast<BranchInst>(L->getHeader()->getTerminator());
+  if (!BI || !BI->isConditional()) {
+    return true;
+  }
+
+  Value *Cond = BI->getCondition();
+
+  if (const ConstantInt *CI = dyn_cast<ConstantInt>(Cond)) {
+    return !CI->isZero();
+  }
+
+  const ICmpInst *ICmp = dyn_cast<ICmpInst>(Cond);
+  if (!ICmp) {
+    return true;
+  }
+
+  // ...
+}
+```
+
+---
+
+## Detalji implementacije
+
+### Provera da li je petlja mrtva
+
+#### Pomoćna funkcija `isLoopInfinite`
+
+```cpp
+bool OurLoopDeletionPass::isLoopInfinite(
+    Loop *L, const std::unordered_set<const Value *> &VarsAlteredInLoop) {
+
+  // ...
+
+  bool loopCounterAlteredInLoop = false;
+  for (const Value *Op : ICmp->operands()) {
+    if (const LoadInst *LI = dyn_cast<LoadInst>(Op)) {
+      const Value *Ptr = LI->getPointerOperand();
+      if (VarsAlteredInLoop.count(Ptr)) {
+        errs() << "Variable " << *Ptr
+               << " is altered in the loop and used in the loop "
+                  "condition.\n";
+        loopCounterAlteredInLoop = true;
+      }
+    }
+  }
+
+  if (loopCounterAlteredInLoop) {
+    return false;
+  }
+
+  // ...
+}
+```
+
+---
+
+## Detalji implementacije
+
+### Provera da li je petlja mrtva
+
+#### Pomoćna funkcija `isLoopInfinite`
+
+```cpp
+bool OurLoopDeletionPass::isLoopInfinite(
+    Loop *L, const std::unordered_set<const Value *> &VarsAlteredInLoop) {
+
+  // ...
+
+  BasicBlock *Preheader = L->getLoopPreheader();
+  const ConstantInt *LHS =
+      resolveOperandToConstant(ICmp->getOperand(0), Preheader);
+  const ConstantInt *RHS =
+      resolveOperandToConstant(ICmp->getOperand(1), Preheader);
+
+  if (!LHS || !RHS) {
+    return true;
+  }
+
+  return ICmpInst::compare(LHS->getValue(), RHS->getValue(), ICmp->getPredicate());
+}
+```
+
+---
+
+## Detalji implementacije
+
+### Provera da li je petlja mrtva
+
+#### Pomoćna funkcija `resolveOperandToConstant`
+
+```cpp
+const ConstantInt *
+OurLoopDeletionPass::resolveOperandToConstant(const Value *Op,
+                                              BasicBlock *Preheader) {
+  if (const ConstantInt *CInt = dyn_cast<ConstantInt>(Op)) {
+    return CInt;
+  }
+  if (auto *LI = dyn_cast<LoadInst>(Op)) {
+    const Value *Ptr = LI->getPointerOperand();
+
+    for (auto RI = Preheader->rbegin(), RE = Preheader->rend(); RI != RE;
+         ++RI) {
+      if (auto *SI = dyn_cast<StoreInst>(&*RI)) {
+        if (SI->getPointerOperand() == Ptr) {
+          return dyn_cast<ConstantInt>(SI->getValueOperand());
+        }
+      }
+    }
+  }
+  return nullptr;
+}
+```
+
+---
+
+## Detalji implementacije
+
+### Provera da li je petlja mrtva
+
 #### Provera da li petlja menja stanje programa (promenljive koje se koriste van petlje)
 
 ```cpp
@@ -219,11 +365,44 @@ bool OurLoopDeletionPass::isLoopDead(Loop *L) {
 
 ```cpp
 bool OurLoopDeletionPass::isUsedAfterLoop(Loop *L, const Value *Var) {
-  BasicBlock *Preheader = L->getLoopPreheader();
+  BasicBlock *ExitBlock = L->getExitBlock();
+  std::unordered_set<const BasicBlock *> BlocksAfterLoop;
+  std::stack<const BasicBlock *> BlocksToVisit;
+  BlocksAfterLoop.insert(ExitBlock);
+  BlocksToVisit.push(ExitBlock);
+
+  while (!BlocksToVisit.empty()) {
+    const BasicBlock *CurrentBlock = BlocksToVisit.top();
+    BlocksToVisit.pop();
+
+    for (const BasicBlock *Succ : successors(CurrentBlock)) {
+      if (!BlocksAfterLoop.count(Succ)) {
+        BlocksAfterLoop.insert(Succ);
+        BlocksToVisit.push(Succ);
+      }
+    }
+  }
+
+  // ...
+}
+```
+
+---
+
+## Detalji implementacije
+
+### Provera da li je petlja mrtva
+
+#### Pomoćna funkcija koja proverava da li se promenljiva koristi nakon petlje
+
+```cpp
+bool OurLoopDeletionPass::isUsedAfterLoop(Loop *L, const Value *Var) {
+  // ...
+
   for (const User *U : Var->users()) {
     if (const Instruction *UserInstr = dyn_cast<Instruction>(U)) {
       const BasicBlock *UserBB = UserInstr->getParent();
-      if (!L->contains(UserBB) && UserBB != Preheader) {
+      if (BlocksAfterLoop.count(UserBB)) {
         return true;
       }
     }
