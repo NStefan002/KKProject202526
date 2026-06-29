@@ -2,6 +2,7 @@
 
 bool OurLoopDeletionPass::isUsedAfterLoop(Loop *L, const Value *Var) {
   BasicBlock *ExitBlock = L->getExitBlock();
+  BasicBlock *Preheader = L->getLoopPreheader();
   std::unordered_set<const BasicBlock *> BlocksAfterLoop;
   std::stack<const BasicBlock *> BlocksToVisit;
   BlocksAfterLoop.insert(ExitBlock);
@@ -12,7 +13,7 @@ bool OurLoopDeletionPass::isUsedAfterLoop(Loop *L, const Value *Var) {
     BlocksToVisit.pop();
 
     for (const BasicBlock *Succ : successors(CurrentBlock)) {
-      if (!BlocksAfterLoop.count(Succ)) {
+      if (Succ != Preheader && !BlocksAfterLoop.count(Succ)) {
         BlocksAfterLoop.insert(Succ);
         BlocksToVisit.push(Succ);
       }
@@ -22,7 +23,7 @@ bool OurLoopDeletionPass::isUsedAfterLoop(Loop *L, const Value *Var) {
   for (const User *U : Var->users()) {
     if (const Instruction *UserInstr = dyn_cast<Instruction>(U)) {
       const BasicBlock *UserBB = UserInstr->getParent();
-      if (BlocksAfterLoop.count(UserBB)) {
+      if (!L->contains(UserBB) && BlocksAfterLoop.count(UserBB)) {
         return true;
       }
     }
