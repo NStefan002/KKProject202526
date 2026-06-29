@@ -264,7 +264,6 @@ bool OurLoopDeletionPass::isLoopInfinite(
       }
     }
   }
-
   if (loopCounterAlteredInLoop) {
     return false;
   }
@@ -367,6 +366,7 @@ bool OurLoopDeletionPass::isLoopDead(Loop *L) {
 ```cpp
 bool OurLoopDeletionPass::isUsedAfterLoop(Loop *L, const Value *Var) {
   BasicBlock *ExitBlock = L->getExitBlock();
+  BasicBlock *Preheader = L->getLoopPreheader();
   std::unordered_set<const BasicBlock *> BlocksAfterLoop;
   std::stack<const BasicBlock *> BlocksToVisit;
   BlocksAfterLoop.insert(ExitBlock);
@@ -377,7 +377,7 @@ bool OurLoopDeletionPass::isUsedAfterLoop(Loop *L, const Value *Var) {
     BlocksToVisit.pop();
 
     for (const BasicBlock *Succ : successors(CurrentBlock)) {
-      if (!BlocksAfterLoop.count(Succ)) {
+      if (Succ != Preheader && !BlocksAfterLoop.count(Succ)) {
         BlocksAfterLoop.insert(Succ);
         BlocksToVisit.push(Succ);
       }
@@ -543,9 +543,10 @@ int main()
 ```c
 int main()
 {
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 5; i++) {
+        int x = 0;
         for (int j = 0; j < 10; j++) {
-            int x = i + j;
+            x += j;
         }
     }
     return 0;
